@@ -27,18 +27,14 @@ const upload = multer({
   fileFilter: (_request, file: Express.Multer.File, callback: Function) => checkFileType(file, callback)
 });
 
-const handleError = (error: NodeJS.ErrnoException, response: Response) => {
-  response
-    .status(500)
-    .send({ message: `Something went wrong processing the file: ${error.message}` });
-};
-
-export class FileTypeError extends Error {}
+class FileTypeError extends Error {}
 
 export const cdnUpload = (request: Request, response: Response) => {
   upload.single('file')(request, response, error => {
-    if (error instanceof FileTypeError) {
-      return response.status(422).send({ message: 'Only images are allowed.' });
+    if (error) {
+      if (error instanceof FileTypeError) {
+        return response.status(422).send({ message: 'Only images are allowed.' });
+      }
     }
 
     if (typeof request.file === 'undefined') {
@@ -50,7 +46,11 @@ export const cdnUpload = (request: Request, response: Response) => {
     const targetPath = path.join(__dirname, '..', '..', 'uploads', fileName);
   
     fs.rename(tempPath, targetPath, error => {
-      if (error) return handleError(error, response);
+      if (error) {
+        return response
+          .status(500)
+          .send({ message: `Something went wrong processing the file: ${error.message}` });
+      }
   
       return response
         .status(200)
