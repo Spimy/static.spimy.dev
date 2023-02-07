@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { cdnUpload, FileTypeError } from '../controllers/cdn.controller';
+import { cdnUpload } from '../controllers/cdn.controller';
 
 // Create router
 const router = Router();
