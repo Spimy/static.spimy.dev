@@ -27,17 +27,38 @@ const upload = multer({
   fileFilter
 });
 
-const getFilePath = (targetPath: string, increment: number = 1): string => {
-  if (!fs.existsSync(targetPath)) return targetPath;
+// Used to avoid duplicated file name when using fs.rename
+const getFilePath = (targetPath: string, folder: string | undefined, increment: number = 1): string => {
+  const defaultPath = getPath(targetPath, folder);
+  if (!fs.existsSync(defaultPath)) return defaultPath;
 
-  const fileName = `${path.basename(targetPath, path.extname(targetPath))}${
+  const fileName = `${path.basename(defaultPath, path.extname(defaultPath))}${
     `_${increment}` || ''
-  }${path.extname(targetPath)}`;
-  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+  }${path.extname(defaultPath)}`;
+  
+  const filePath = getPath(fileName, folder);
 
-  if (fs.existsSync(filePath)) return getFilePath(targetPath, increment + 1);
+  if (fs.existsSync(filePath)) return getFilePath(defaultPath, folder, increment + 1);
   return filePath;
 };
+
+// Used to actually get the path of destination
+const getPath = (defaultFilePath: string, folder: string | undefined) => {
+  const fileName = path.basename(defaultFilePath);
+  let filePath: string;
+
+  if (!folder) {
+    filePath = path.join(__dirname, '..', '..', 'uploads');
+  } else {
+    filePath = path.join(__dirname, '..', '..', 'uploads', folder);
+  }
+
+  if (!fs.existsSync(filePath)) {
+    fs.mkdirSync(filePath, { recursive: true });
+  }
+
+  return path.join(filePath, fileName);
+}
 
 class FileTypeError extends Error {}
 
@@ -57,9 +78,12 @@ export const cdnUpload = (request: Request, response: Response) => {
         .send({ message: 'A file was not provided in the request.' });
     }
 
+    const folder = request.body.folder;
     const tempPath = request.file.path;
+
     const targetPath = getFilePath(
-      path.join(__dirname, '..', '..', 'uploads', request.file.originalname)
+      path.join(__dirname, '..', '..', 'uploads', request.file.originalname),
+      request.body.folder || undefined
     );
     const fileName = path.basename(targetPath);
 
@@ -74,7 +98,7 @@ export const cdnUpload = (request: Request, response: Response) => {
 
       return response.status(200).send({
         message: `Successfully uploaded ${fileName}.`,
-        url: `http://${request.get('host')}/${fileName}`
+        url: `http://${request.get('host')}/${folder ? `${folder}/${fileName}` : fileName}`
       });
     });
   });
