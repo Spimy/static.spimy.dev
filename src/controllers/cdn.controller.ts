@@ -27,6 +27,16 @@ const upload = multer({
   fileFilter: (_request, file: Express.Multer.File, callback: Function) => checkFileType(file, callback)
 });
 
+const getFilePath = (targetPath: string, increment: number = 1): string => {
+  if (!fs.existsSync(targetPath)) return targetPath;
+
+  const fileName = `${path.basename(targetPath, path.extname(targetPath))}${`_${increment}` || ''}${path.extname(targetPath)}`;
+  const filePath = path.join(__dirname, '..', '..', 'uploads', fileName);
+  
+  if (fs.existsSync(filePath)) return getFilePath(targetPath, increment + 1);
+  return filePath;
+}
+
 class FileTypeError extends Error {}
 
 export const cdnUpload = (request: Request, response: Response) => {
@@ -42,8 +52,8 @@ export const cdnUpload = (request: Request, response: Response) => {
     }
 
     const tempPath = request.file.path;
-    const fileName = request.file.originalname;
-    const targetPath = path.join(__dirname, '..', '..', 'uploads', fileName);
+    const targetPath = getFilePath(path.join(__dirname, '..', '..', 'uploads', request.file.originalname));
+    const fileName = path.basename(targetPath);
   
     fs.rename(tempPath, targetPath, error => {
       if (error) {
