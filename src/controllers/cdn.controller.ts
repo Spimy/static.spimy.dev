@@ -4,7 +4,11 @@ import path from 'path';
 import fs from 'fs';
 
 // Setup multer upload middleware
-const fileFilter = (_: Request, file: Express.Multer.File, callback: Function) => {
+const fileFilter = (
+  _: Request,
+  file: Express.Multer.File,
+  callback: Function
+) => {
   // Allowed ext
   const filetypes = /jpeg|jpg|png|gif/;
   // Check ext
@@ -28,17 +32,22 @@ const upload = multer({
 });
 
 // Used to avoid duplicated file name when using fs.rename
-const getFilePath = (targetPath: string, folder: string | undefined, increment: number = 1): string => {
+const getFilePath = (
+  targetPath: string,
+  folder: string | undefined,
+  increment: number = 1
+): string => {
   const defaultPath = getPath(targetPath, folder);
   if (!fs.existsSync(defaultPath)) return defaultPath;
 
   const fileName = `${path.basename(defaultPath, path.extname(defaultPath))}${
     `_${increment}` || ''
   }${path.extname(defaultPath)}`;
-  
+
   const filePath = getPath(fileName, folder);
 
-  if (fs.existsSync(filePath)) return getFilePath(defaultPath, folder, increment + 1);
+  if (fs.existsSync(filePath))
+    return getFilePath(defaultPath, folder, increment + 1);
   return filePath;
 };
 
@@ -58,10 +67,11 @@ const getPath = (defaultFilePath: string, folder: string | undefined) => {
   }
 
   return path.join(filePath, fileName);
-}
+};
 
 class FileTypeError extends Error {}
 
+// Controllers start here
 export const cdnUpload = (request: Request, response: Response) => {
   upload.single('file')(request, response, (error) => {
     if (error) {
@@ -89,17 +99,54 @@ export const cdnUpload = (request: Request, response: Response) => {
 
     fs.rename(tempPath, targetPath, (error) => {
       if (error) {
-        return response
-          .status(500)
-          .send({
-            message: `Something went wrong processing the file: ${error.message}`
-          });
+        return response.status(500).send({
+          message: `Something went wrong processing the file: ${error.message}`
+        });
       }
 
       return response.status(200).send({
         message: `Successfully uploaded ${fileName}.`,
-        url: `http://${request.get('host')}/${folder ? `${folder}/${fileName}` : fileName}`
+        url: `http://${request.get('host')}/${
+          folder ? `${folder}/${fileName}` : fileName
+        }`
       });
     });
+  });
+};
+
+export const deleteFile = (request: Request, response: Response) => {
+  const url = request.body.url;
+  if (!url) {
+    return response
+      .status(422)
+      .send({ message: 'A URL needs to the file needs to be provided.' });
+  }
+
+  const extractedPath = url.replace(/^.*\/\/[^\/]+/, '');
+  const fileName = path.basename(extractedPath);
+  const filePath = path.join(__dirname, '..', '..', 'uploads', extractedPath);
+
+  if (!fs.existsSync(filePath)) {
+    return response.status(404).send({
+      message: 'URL provided does not seem to lead to a file on the server.'
+    });
+  }
+
+  if (fs.lstatSync(filePath).isDirectory()) {
+    return response.status(403).send({
+      message: 'Cannot delete a directory. URL provided must lead to a file.'
+    });
+  }
+
+  fs.unlink(filePath, (error) => {
+    if (error) {
+      return response.status(403).send({
+        message: 'Cannot delete a directory. URL provided must lead to a file.'
+      });
+    }
+
+    return response
+      .status(200)
+      .send({ message: `File '${fileName}' deleted.` });
   });
 };
