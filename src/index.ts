@@ -10,6 +10,7 @@ config();
 const app = express();
 
 // Setup app
+app.enable('trust proxy');
 app.use(express.json());
 app.use('/', cdnRouter);
 
