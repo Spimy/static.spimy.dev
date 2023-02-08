@@ -28,10 +28,10 @@ Post requests should contain a file upload with the field named `file`.
 An optional body can be sent along the request:
 
 ```json
-{ "folder": "screenshot" }
+{ "folder": "screenshots" }
 ```
 
-I am personally using the screenshot folder for my [ShareX](https://getsharex.com/) uploads.
+I am personally using the screenshots folder for my [ShareX](https://getsharex.com/) uploads.
 
 ### Reponses
 
@@ -50,8 +50,17 @@ This means either a file was not provided or the file provided was not an image.
 { "message": "Only images are allowed." }
 ```
 
+**Status:** `413`
+This means that the file uploaded was larger than the max file size limit allowed. The following response is returned:
+
+```json
+{
+  "message": "The file uploaded was larger than the max size limit of <max_upload_size>MiB."
+}
+```
+
 **Status:** `200`
-File was successfully uploaded to the server and stored. The follow response is returned:
+File was successfully uploaded to the server and stored. The following response is returned:
 
 ```json
 {
