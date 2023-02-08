@@ -30,6 +30,22 @@ app.use(
   })
 );
 
+// Setup cache control
+app.use((request, response, next) => {
+  const cacheDays = 3;
+  if (request.method === 'GET') {
+    // Cache for 3 days
+    response.set(
+      'Cache-control',
+      `public, max-age=${cacheDays * 1000 * 24 * 3600}`
+    );
+  } else {
+    response.set('Cache-control', `no-store`);
+  }
+
+  next();
+});
+
 app.listen(process.env.PORT, () =>
   console.log(`Listening on port ${process.env.PORT}`)
 );
