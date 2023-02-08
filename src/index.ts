@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import express from 'express';
+import cors from 'cors';
 import path from 'path';
 
 import cdnRouter from './routes/cdn.route';
@@ -11,11 +12,24 @@ const app = express();
 // Setup app
 app.use(express.json());
 app.use('/', cdnRouter);
+
+// Serve static files
 app.use(express.static(path.join(__dirname, '..', 'uploads')));
+
+// Handle status 404 routes
 app.use((_request, response, _next) => {
   return response
     .status(404)
     .send({ message: 'You have stumbled across an inexistent path.' });
 });
 
-app.listen(process.env.PORT, () => console.log(`Listening on port ${process.env.PORT}`));
+// Setup cors
+app.use(
+  cors({
+    origin: ['https://spimy.dev', 'https://*.spimy.dev']
+  })
+);
+
+app.listen(process.env.PORT, () =>
+  console.log(`Listening on port ${process.env.PORT}`)
+);
