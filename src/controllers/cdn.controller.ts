@@ -116,7 +116,7 @@ export const cdnUpload = (request: Request, response: Response) => {
 
       return response.status(200).send({
         message: `Successfully uploaded ${fileName}.`,
-        url: `http://${request.get('host')}/${
+        url: `${request.protocol}://${request.get('host')}/${
           folder ? `${folder}/${fileName}` : fileName
         }`
       });
