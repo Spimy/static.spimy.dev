@@ -3,6 +3,8 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
+const MAX_UPLOAD_SIZE = 20; // in MiB
+
 // Setup multer upload middleware
 const fileFilter = (
   _: Request,
@@ -26,7 +28,7 @@ const fileFilter = (
 const upload = multer({
   dest: path.join(__dirname, '../temp'),
   limits: {
-    fileSize: 20 * 1024 * 1024 // 20 MiB
+    fileSize: MAX_UPLOAD_SIZE * 1024 * 1024 // 20 MiB
   },
   fileFilter
 });
@@ -79,6 +81,14 @@ export const cdnUpload = (request: Request, response: Response) => {
         return response
           .status(422)
           .send({ message: 'Only images are allowed.' });
+      }
+
+      if (error instanceof multer.MulterError) {
+        if (error.code === 'LIMIT_FILE_SIZE') {
+          return response.status(413).send({
+            message: `The file uploaded was larger than the max size limit of ${MAX_UPLOAD_SIZE}MiB.`
+          });
+        }
       }
     }
 
