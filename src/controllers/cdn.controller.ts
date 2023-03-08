@@ -129,7 +129,7 @@ export const deleteFile = (request: Request, response: Response) => {
   if (!url) {
     return response
       .status(422)
-      .send({ message: 'A URL needs to the file needs to be provided.' });
+      .send({ message: 'A URL to the file needs to be provided.' });
   }
 
   const extractedPath = url.replace(/^.*\/\/[^\/]+/, '');
