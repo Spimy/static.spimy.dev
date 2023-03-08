@@ -1,4 +1,4 @@
-# cdn.spimy.dev
+# static.spimy.dev
 
 An express server is used to handle file uploading and serving all the files uploaded. Accepts only images.
 
@@ -65,7 +65,7 @@ File was successfully uploaded to the server and stored. The following response 
 ```json
 {
   "message": "Successfully uploaded <filename>.<ext>.",
-  "url": "http://cdn.spimy.dev/<filename>.<ext>"
+  "url": "http://static.spimy.dev/<filename>.<ext>"
 }
 ```
 
@@ -76,7 +76,7 @@ Delete a file from the server. The request should contain the following body:
 
 ```json
 {
-  "url": "http://cdn.spimy.dev/<filename>.<ext>"
+  "url": "http://static.spimy.dev/<filename>.<ext>"
 }
 ```
 
@@ -91,4 +91,4 @@ PORT=
 UPLOAD_TOKEN=
 ```
 
-The CDN should automatically redirect the user to HTTPS.
+The server should automatically redirect the user to HTTPS.
