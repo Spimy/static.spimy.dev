@@ -266,11 +266,11 @@
     <div class="main-area" id="mainArea">
       <div class="topbar">
         <button id="menuBtn" style="margin-right: 15px; display: none;">☰</button>
+        <div>
+          <input type="file" id="mobileUploadInput" multiple style="display: none;" />
+          <button onclick="document.getElementById('mobileUploadInput').click()" title="Upload Files">📤 Upload</button>
+        </div>
         <h2 style="margin: 0" id="currentFolderText">Root</h2>
-      </div>
-      <div>
-        <input type="file" id="mobileUploadInput" multiple style="display: none;" />
-        <button onclick="document.getElementById('mobileUploadInput').click()" title="Upload Files">📤 Upload</button>
       </div>
       <div class="sidebar-overlay" id="sidebarOverlay" onclick="ui.toggleSidebar()"></div>
       <div class="media-container" id="scrollContainer">
