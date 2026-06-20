@@ -268,6 +268,10 @@
         <button id="menuBtn" style="margin-right: 15px; display: none;">☰</button>
         <h2 style="margin: 0" id="currentFolderText">Root</h2>
       </div>
+      <div>
+        <input type="file" id="mobileUploadInput" multiple style="display: none;" />
+        <button onclick="document.getElementById('mobileUploadInput').click()" title="Upload Files">📤 Upload</button>
+      </div>
       <div class="sidebar-overlay" id="sidebarOverlay" onclick="ui.toggleSidebar()"></div>
       <div class="media-container" id="scrollContainer">
         <div class="media-grid" id="mediaGrid"></div>
@@ -607,10 +611,42 @@
           await this.refreshFolders();
           this.setupScrollObserver();
           this.setupDragAndDrop();
+          this.setupMobileUpload();
           this.loadFolder(''); // Load Root initially
 
           document.getElementById('menuBtn').addEventListener('click', ui.toggleSidebar);
           window.addEventListener('resize', ui.checkResponsive);
+        },
+
+        async processUploads(files) {
+          if (!files.length) return;
+
+          // Show temporary loading state
+          els.mediaGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;">Uploading ${files.length} file(s)...</div>`;
+
+          let successCount = 0;
+          for (const file of files) {
+            const success = await api.uploadFile(file, state.currentFolder);
+            if (success) successCount++;
+          }
+
+          if (successCount > 0) {
+            await this.refreshFolders(); // Pull updated list from server
+            this.loadFolder(state.currentFolder); // Reload grid to see files
+          } else {
+            alert('Upload failed. Check console or API token.');
+            this.loadFolder(state.currentFolder);
+          }
+        },
+
+        setupMobileUpload() {
+          const uploadInput = document.getElementById('mobileUploadInput');
+          uploadInput.addEventListener('change', (e) => {
+            this.processUploads(e.target.files);
+            
+            // Reset the input value so the same file can be selected again later if needed
+            e.target.value = ''; 
+          });
         },
 
         saveSettings() {
@@ -768,23 +804,7 @@
 
             const files = e.dataTransfer.files;
             if (!files.length) return;
-
-            // Show temporary loading state
-            els.mediaGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;">Uploading ${files.length} file(s)...</div>`;
-
-            let successCount = 0;
-            for (const file of files) {
-              const success = await api.uploadFile(file, state.currentFolder);
-              if (success) successCount++;
-            }
-
-            if (successCount > 0) {
-              await this.refreshFolders(); // Pull updated list from server
-              this.loadFolder(state.currentFolder); // Reload grid to see files
-            } else {
-              alert('Upload failed. Check console or API token.');
-              this.loadFolder(state.currentFolder);
-            }
+            app.processUploads(files);
           });
         }
       };
