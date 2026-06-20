@@ -710,6 +710,21 @@
           }
 
           state.isLoading = false;
+
+          if (state.hasMore) {
+            // requestAnimationFrame ensures the DOM has finished painting the new files
+            // before we calculate the bounding rectangles.
+            requestAnimationFrame(() => {
+              const containerRect = document.getElementById('scrollContainer').getBoundingClientRect();
+              const triggerRect = els.scrollTrigger.getBoundingClientRect();
+              
+              // If the top of the trigger element is still within the visible container area,
+              // it means we haven't filled the large screen yet. Fetch more!
+              if (triggerRect.top <= containerRect.bottom) {
+                this.loadMore();
+              }
+            });
+          }
         },
 
         async deleteMedia(url, btnElement) {
