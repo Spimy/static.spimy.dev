@@ -84,6 +84,13 @@ class FileTypeError extends Error {}
 // File listing
 const getUploadsDir = () => path.join(__dirname, '..', '..', 'uploads');
 
+function yearMonthFolder() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0'); // month is 0-based
+  return `${yyyy}-${mm}`;
+}
+
 // Controllers start here
 export const cdnUpload = (request: Request, response: Response) => {
   upload.single('file')(request, response, (error) => {
@@ -109,12 +116,15 @@ export const cdnUpload = (request: Request, response: Response) => {
         .send({ message: 'A file was not provided in the request.' });
     }
 
-    const folder = request.body.folder;
+    const folder =
+      request.body.folder == 'screenshots'
+        ? `screenshots/${yearMonthFolder()}`
+        : request.body.folder;
     const tempPath = request.file.path;
 
     const targetPath = getFilePath(
       path.join(__dirname, '..', '..', 'uploads', request.file.originalname),
-      request.body.folder || undefined
+      folder || undefined
     );
     const fileName = path.basename(targetPath);
 
