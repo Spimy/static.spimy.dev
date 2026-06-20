@@ -178,6 +178,9 @@ export const deleteFile = (request: Request, response: Response) => {
       });
     }
 
+    const folder = path.dirname(extractedPath).replace(/^\/+/, ''); // Remove leading slashes
+    delete fileCache[folder || ''];
+
     return response
       .status(200)
       .send({ message: `File '${fileName}' deleted.` });
