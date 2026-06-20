@@ -1,9 +1,17 @@
 import { Request, Response } from 'express';
+import fs, { promises as fsPromises } from 'fs';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 
 const MAX_UPLOAD_SIZE = 20; // in MiB
+
+// Cache configuration
+interface CacheEntry {
+  files: { name: string; url: string; mtime: number }[];
+  expiresAt: number;
+}
+const fileCache: Record<string, CacheEntry> = {};
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
 // Setup multer upload middleware
 const fileFilter = (
@@ -73,6 +81,9 @@ const getPath = (defaultFilePath: string, folder: string | undefined) => {
 
 class FileTypeError extends Error {}
 
+// File listing
+const getUploadsDir = () => path.join(__dirname, '..', '..', 'uploads');
+
 // Controllers start here
 export const cdnUpload = (request: Request, response: Response) => {
   upload.single('file')(request, response, (error) => {
@@ -113,6 +124,8 @@ export const cdnUpload = (request: Request, response: Response) => {
           message: `Something went wrong processing the file: ${error.message}`
         });
       }
+
+      delete fileCache[folder || ''];
 
       return response.status(200).send({
         message: `Successfully uploaded ${fileName}.`,
@@ -158,5 +171,120 @@ export const deleteFile = (request: Request, response: Response) => {
     return response
       .status(200)
       .send({ message: `File '${fileName}' deleted.` });
+  });
+};
+
+export const getFolders = async (request: Request, response: Response) => {
+  try {
+    const uploadsDir = getUploadsDir();
+    if (!fs.existsSync(uploadsDir))
+      fs.mkdirSync(uploadsDir, { recursive: true });
+
+    // Helper function to recursively map all directories
+    const walkDirectories = async (
+      dir: string,
+      baseDir: string
+    ): Promise<string[]> => {
+      let results: string[] = [];
+      const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        if (entry.isDirectory()) {
+          const fullPath = path.join(dir, entry.name);
+
+          // Calculate the relative path from the root uploads folder
+          // and ensure we use forward slashes (/) for the web, even on Windows
+          const relativePath = path
+            .relative(baseDir, fullPath)
+            .replace(/\\/g, '/');
+          results.push(relativePath);
+
+          // Recursively scan this subdirectory
+          const subResults = await walkDirectories(fullPath, baseDir);
+          results = results.concat(subResults);
+        }
+      }
+      return results;
+    };
+
+    // Start the recursive scan from the root uploads directory
+    const folders = await walkDirectories(uploadsDir, uploadsDir);
+
+    // Sort alphabetically so the tree view looks neat
+    folders.sort();
+
+    return response.status(200).json(folders);
+  } catch (error: any) {
+    return response
+      .status(500)
+      .json({ message: `Failed to fetch folders: ${error.message}` });
+  }
+};
+
+export const getFiles = async (request: Request, response: Response) => {
+  const folderParam = (request.query.folder as string) || '';
+  const limit = parseInt(request.query.limit as string) || 20;
+  const offset = parseInt(request.query.offset as string) || 0;
+
+  const now = Date.now();
+  const cacheKey = folderParam;
+
+  let sortedFiles = [];
+
+  // Check Cache
+  if (fileCache[cacheKey] && fileCache[cacheKey].expiresAt > now) {
+    sortedFiles = fileCache[cacheKey].files;
+  } else {
+    // Cache Miss - Read Disk
+    const targetDir = path.join(getUploadsDir(), folderParam);
+
+    if (!fs.existsSync(targetDir)) {
+      return response.status(200).json({ files: [], hasMore: false });
+    }
+
+    try {
+      const filenames = await fsPromises.readdir(targetDir);
+
+      const filePromises = filenames.map(async (filename) => {
+        const filePath = path.join(targetDir, filename);
+        const stat = await fsPromises.stat(filePath);
+
+        if (stat.isDirectory()) return null;
+
+        return {
+          name: filename,
+          url: `${request.protocol}://${request.get('host')}/${folderParam ? `${folderParam}/` : ''}${filename}`,
+          mtime: stat.mtimeMs
+        };
+      });
+
+      const resolvedFiles = await Promise.all(filePromises);
+
+      // Filter out nulls and sort newest first
+      sortedFiles = resolvedFiles
+        .filter(
+          (f): f is { name: string; url: string; mtime: number } => f !== null
+        )
+        .sort((a, b) => b.mtime - a.mtime);
+
+      // Save to cache
+      fileCache[cacheKey] = {
+        files: sortedFiles,
+        expiresAt: Date.now() + CACHE_TTL
+      };
+    } catch (error: any) {
+      return response
+        .status(500)
+        .json({ message: `Error reading directory: ${error.message}` });
+    }
+  }
+
+  // Slice for Pagination
+  const slicedFiles = sortedFiles.slice(offset, offset + limit);
+  const hasMore = offset + limit < sortedFiles.length;
+
+  return response.status(200).json({
+    files: slicedFiles.map(({ name, url }) => ({ name, url })), // Strip mtime before sending
+    hasMore
   });
 };

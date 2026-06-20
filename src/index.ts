@@ -1,6 +1,6 @@
+import cors from 'cors';
 import { config } from 'dotenv';
 import express from 'express';
-import cors from 'cors';
 import path from 'path';
 
 import cdnRouter from './routes/cdn.route';
@@ -14,8 +14,14 @@ app.enable('trust proxy');
 app.use(express.json());
 app.use('/', cdnRouter);
 
+// Serve the frontend UI explicitly at the root route
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 // Serve static files
 app.use(express.static(path.join(__dirname, '..', 'uploads')));
+app.use('/assets', express.static(path.join(__dirname, '..', 'public')));
 
 // Handle status 404 routes
 app.use((_request, response, _next) => {

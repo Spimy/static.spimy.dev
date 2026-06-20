@@ -1,0 +1,781 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CDN Explorer</title>
+    <style>
+      :root {
+        --bg: #1e1e1e;
+        --sidebar: #252526;
+        --text: #cccccc;
+        --accent: #007acc;
+        --danger: #e51400;
+      }
+      * {
+        box-sizing: border-box;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+      body {
+        margin: 0;
+        display: flex;
+        height: 100vh;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      /* Layout */
+      .sidebar {
+        width: 300px;
+        background: var(--sidebar);
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .sidebar-header {
+        padding: 15px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      /* Sidebar responsive logic */
+      @media (max-width: 768px) {
+          .sidebar {
+              position: fixed;
+              left: -300px; /* Hide off-screen by default */
+              top: 0;
+              bottom: 0;
+              z-index: 200;
+              transition: left 0.3s ease;
+          }
+          
+          .sidebar.visible {
+              left: 0;
+          }
+
+          /* Dim the background when sidebar is open */
+          .sidebar-overlay {
+              position: fixed;
+              inset: 0;
+              background: rgba(0,0,0,0.5);
+              z-index: 150;
+              display: none;
+          }
+          .sidebar-overlay.visible { display: block; }
+      }
+      .folder-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 10px 0;
+      }
+
+      /* Tree View Styles */
+      .tree-node {
+        display: flex;
+        align-items: center;
+        padding: 6px 15px;
+        cursor: pointer;
+        user-select: none;
+      }
+      .tree-node:hover {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .tree-node.active {
+        background: var(--accent);
+        color: white;
+      }
+      .tree-children {
+        display: none;
+      }
+      .tree-children.expanded {
+        display: block;
+      }
+      .collapse-icon {
+        display: inline-block;
+        width: 16px;
+        text-align: center;
+        margin-right: 4px;
+        font-size: 12px;
+        transition: transform 0.2s;
+      }
+      .collapse-icon.open {
+        transform: rotate(90deg);
+      }
+
+      .main-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+      }
+      .topbar {
+        padding: 15px 20px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      /* Media Grid */
+      .media-container {
+        flex: 1;
+        overflow-y: auto;
+        padding: 20px;
+        position: relative;
+      }
+      .media-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 15px;
+      }
+      .media-card {
+        position: relative;
+        aspect-ratio: 1;
+        background: rgba(255, 255, 255, 0.05);
+        border-radius: 8px;
+        overflow: hidden;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .media-card img,
+      .media-card video {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .media-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        opacity: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        transition: opacity 0.2s;
+      }
+      .media-card:hover .media-overlay {
+        opacity: 1;
+      }
+
+      /* Buttons & Forms */
+      button {
+        background: var(--accent);
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      button:hover {
+        opacity: 0.9;
+      }
+      button.danger {
+        background: var(--danger);
+      }
+
+      /* Modals & Overlays */
+      .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+      }
+      .modal.hidden {
+        display: none;
+      }
+      .modal-content {
+        background: var(--sidebar);
+        padding: 25px;
+        border-radius: 8px;
+        width: 450px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      input[type='password'],
+      input[type='text'] {
+        width: 100%;
+        padding: 10px;
+        margin: 5px 0 15px;
+        background: var(--bg);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        color: white;
+        border-radius: 4px;
+      }
+
+      .theme-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+      .theme-control {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      input[type='color'] {
+        border: none;
+        background: none;
+        width: 30px;
+        height: 30px;
+        cursor: pointer;
+      }
+
+      .drop-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 122, 204, 0.2);
+        border: 4px dashed var(--accent);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 50;
+        font-size: 24px;
+        font-weight: bold;
+        pointer-events: none;
+      }
+      .drop-overlay.hidden {
+        display: none;
+      }
+
+      #scrollTrigger {
+        height: 20px;
+        margin-top: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <strong>📂 Explorer</strong>
+        <div style="display: flex; gap: 5px">
+          <button onclick="app.createNewFolder()" title="New Folder">➕</button>
+          <button onclick="ui.toggleSettings()" title="Settings">⚙️</button>
+        </div>
+      </div>
+      <div class="folder-list" id="folderList"></div>
+    </div>
+
+    <div class="main-area" id="mainArea">
+      <div class="topbar">
+        <button id="menuBtn" style="margin-right: 15px; display: none;">☰</button>
+        <h2 style="margin: 0" id="currentFolderText">Root</h2>
+      </div>
+      <div class="sidebar-overlay" id="sidebarOverlay" onclick="ui.toggleSidebar()"></div>
+      <div class="media-container" id="scrollContainer">
+        <div class="media-grid" id="mediaGrid"></div>
+        <div id="scrollTrigger"></div>
+      </div>
+      <div class="drop-overlay hidden" id="dropOverlay">
+        Drop files to upload here
+      </div>
+    </div>
+
+    <div class="modal hidden" id="settingsModal">
+      <div class="modal-content">
+        <h3>Configuration</h3>
+
+        <label>API Authorization Token</label>
+        <input
+          type="password"
+          id="inputToken"
+          placeholder="Enter API Token"
+        />
+
+        <h4>Theme Settings</h4>
+        <div class="theme-grid">
+          <div class="theme-control">
+            <label>Background</label> <input type="color" id="colorBg" />
+          </div>
+          <div class="theme-control">
+            <label>Sidebar</label> <input type="color" id="colorSidebar" />
+          </div>
+          <div class="theme-control">
+            <label>Text</label> <input type="color" id="colorText" />
+          </div>
+          <div class="theme-control">
+            <label>Accent</label> <input type="color" id="colorAccent" />
+          </div>
+        </div>
+
+        <div
+          style="
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 15px;
+          "
+        >
+          <button
+            onclick="app.resetTheme()"
+            style="
+              background: transparent;
+              border: 1px solid rgba(255, 255, 255, 0.2);
+            "
+          >
+            Reset Theme
+          </button>
+          <button
+            onclick="ui.toggleSettings()"
+            style="
+              background: transparent;
+              border: 1px solid rgba(255, 255, 255, 0.2);
+            "
+          >
+            Cancel
+          </button>
+          <button onclick="app.saveSettings()">Save & Reload</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const defaultTheme = {
+        bg: '#1e1e1e',
+        sidebar: '#252526',
+        text: '#cccccc',
+        accent: '#007acc'
+      };
+
+      const state = {
+        settings: JSON.parse(
+          localStorage.getItem('cdn_settings') || 'null'
+        ) || {
+          token: '',
+          theme: { ...defaultTheme }
+        },
+        folders: [], // Raw flat list from API + virtual folders
+        expandedFolders: new Set(), // Tracks which tree nodes are open
+        currentFolder: '',
+        offset: 0,
+        limit: 20,
+        hasMore: true,
+        isLoading: false
+      };
+
+      const els = {
+        folderList: document.getElementById('folderList'),
+        mediaGrid: document.getElementById('mediaGrid'),
+        currentFolderText: document.getElementById('currentFolderText'),
+        scrollTrigger: document.getElementById('scrollTrigger'),
+        dropOverlay: document.getElementById('dropOverlay'),
+        mainArea: document.getElementById('mainArea'),
+        settingsModal: document.getElementById('settingsModal'),
+
+        inputToken: document.getElementById('inputToken'),
+        colorBg: document.getElementById('colorBg'),
+        colorSidebar: document.getElementById('colorSidebar'),
+        colorText: document.getElementById('colorText'),
+        colorAccent: document.getElementById('colorAccent')
+      };
+
+      const api = {
+        headers: () => ({ Authorization: state.settings.token }),
+
+        async fetchFolders() {
+          if (!state.settings.token) return;
+          try {
+            const res = await fetch('/api/folders', {
+              headers: this.headers()
+            });
+            if (res.status === 401) ui.toggleSettings(true);
+            return res.ok ? await res.json() : [];
+          } catch (e) {
+            return [];
+          }
+        },
+
+        async fetchFiles(folder, offset) {
+          if (!state.settings.token) return null;
+          try {
+            const res = await fetch(
+              `/api/files?folder=${encodeURIComponent(folder)}&offset=${offset}&limit=${state.limit}`,
+              { headers: this.headers() }
+            );
+            return res.ok ? await res.json() : null;
+          } catch (e) {
+            return null;
+          }
+        },
+
+        async uploadFile(file, folder) {
+          const formData = new FormData();
+          formData.append('file', file);
+          if (folder) formData.append('folder', folder);
+
+          try {
+            const res = await fetch('/upload', {
+              method: 'POST',
+              headers: this.headers(),
+              body: formData
+            });
+            return res.ok;
+          } catch (e) {
+            return false;
+          }
+        },
+
+        async deleteFile(url) {
+          try {
+            const res = await fetch('/delete', {
+              method: 'DELETE',
+              headers: {
+                ...this.headers(),
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ url })
+            });
+            return res.ok;
+          } catch (e) {
+            return false;
+          }
+        }
+      };
+
+      const ui = {
+        applyTheme() {
+          const root = document.documentElement;
+          root.style.setProperty('--bg', state.settings.theme.bg);
+          root.style.setProperty('--sidebar', state.settings.theme.sidebar);
+          root.style.setProperty('--text', state.settings.theme.text);
+          root.style.setProperty('--accent', state.settings.theme.accent);
+        },
+
+        toggleSettings(forceShow = false) {
+          els.inputToken.value = state.settings.token;
+          els.colorBg.value = state.settings.theme.bg;
+          els.colorSidebar.value = state.settings.theme.sidebar;
+          els.colorText.value = state.settings.theme.text;
+          els.colorAccent.value = state.settings.theme.accent;
+
+          els.settingsModal.classList.toggle(
+            'hidden',
+            !forceShow && !els.settingsModal.classList.contains('hidden')
+          );
+        },
+
+        // Toggle sidebar visibility
+        toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            sidebar.classList.toggle('visible');
+            overlay.classList.toggle('visible');
+        },
+
+        // Check screen size to show/hide menu button
+        checkResponsive() {
+            const menuBtn = document.getElementById('menuBtn');
+            if (window.innerWidth <= 768) {
+                menuBtn.style.display = 'block';
+            } else {
+                menuBtn.style.display = 'none';
+                // Reset if resizing back to desktop
+                document.querySelector('.sidebar').classList.remove('visible');
+                document.getElementById('sidebarOverlay').classList.remove('visible');
+            }
+        },
+
+        // --- TREE VIEW RENDERING LOGIC ---
+        buildTree(paths) {
+          const tree = {};
+          paths.forEach((path) => {
+            const parts = path.split('/').filter(Boolean);
+            let current = tree;
+            parts.forEach((part, i) => {
+              const fullPath = parts.slice(0, i + 1).join('/');
+              if (!current[part]) {
+                current[part] = { _path: fullPath, _children: {} };
+              }
+              current = current[part]._children;
+            });
+          });
+          return tree;
+        },
+
+        renderTreeHTML(node, depth = 0) {
+          let html = '';
+          for (const [name, data] of Object.entries(node)) {
+            const hasChildren = Object.keys(data._children).length > 0;
+            const path = data._path;
+            const isExpanded = state.expandedFolders.has(path) || depth === 0; // Root levels open by default
+            if (isExpanded) state.expandedFolders.add(path); // ensure state tracks defaults
+
+            const isActive = state.currentFolder === path ? 'active' : '';
+            const indent = depth * 15 + 15;
+
+            html += `
+                        <div class="tree-node ${isActive}" style="padding-left: ${indent}px;" onclick="app.handleFolderClick(event, '${path}', ${hasChildren})">
+                            <span class="collapse-icon ${isExpanded ? 'open' : ''}" style="visibility: ${hasChildren ? 'visible' : 'hidden'}">▶</span>
+                            <span>📁 ${name}</span>
+                        </div>
+                        <div class="tree-children ${isExpanded ? 'expanded' : ''}" id="children-${path}">
+                            ${hasChildren ? this.renderTreeHTML(data._children, depth + 1) : ''}
+                        </div>
+                    `;
+          }
+          return html;
+        },
+
+        updateSidebar() {
+          const tree = this.buildTree(state.folders);
+          const rootActive = state.currentFolder === '' ? 'active' : '';
+
+          let html = `
+                    <div class="tree-node ${rootActive}" style="padding-left: 15px;" onclick="app.loadFolder('')">
+                        <span class="collapse-icon" style="visibility: hidden">▶</span>
+                        <span>🏠 Root</span>
+                    </div>
+                `;
+          html += this.renderTreeHTML(tree);
+          els.folderList.innerHTML = html;
+        },
+
+        appendFiles(files) {
+          // If we are on the first page, calculate and render subfolders first
+          if (state.offset === 0) {
+            const prefix = state.currentFolder ? state.currentFolder + '/' : '';
+
+            // Find folders that start with current path but don't have deeper slashes
+            const subfolders = state.folders.filter((p) => {
+              if (state.currentFolder === '') return !p.includes('/'); // Root subfolders
+              return (
+                p.startsWith(prefix) &&
+                p.length > prefix.length &&
+                !p.slice(prefix.length).includes('/')
+              );
+            });
+
+            // Check if the folder is entirely empty (no subfolders AND no files)
+            if (subfolders.length === 0 && files.length === 0) {
+              els.mediaGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; opacity: 0.5; padding: 40px;">Folder is empty. Drop files here to upload.</div>`;
+              return;
+            }
+
+            // Render the Subfolder Cards
+            subfolders.forEach((subPath) => {
+              const folderName = subPath.split('/').pop();
+              const card = document.createElement('div');
+              card.className = 'media-card';
+              card.style.flexDirection = 'column'; // Stack icon and text vertically
+              card.innerHTML = `
+                            <div style="font-size: 50px; margin-bottom: 10px;">📁</div>
+                            <div style="font-weight: bold; text-align: center; padding: 0 10px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${folderName}</div>
+                            <div class="media-overlay">
+                                <button onclick="app.loadFolder('${subPath}')" style="font-size: 16px; padding: 10px 20px;">Open Folder</button>
+                            </div>
+                        `;
+              els.mediaGrid.appendChild(card);
+            });
+          }
+
+          // Render the actual files below the folders
+          files.forEach((file) => {
+            const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
+            const mediaTag = isImage
+              ? `<img src="${file.url}" loading="lazy">`
+              : `<div style="padding: 20px; text-align: center; word-break: break-all;">📄 ${file.name}</div>`;
+
+            const card = document.createElement('div');
+            card.className = 'media-card';
+            card.innerHTML = `
+                        ${mediaTag}
+                        <div class="media-overlay">
+                            <button onclick="navigator.clipboard.writeText('${file.url}')">📋 Copy URL</button>
+                            <a href="${file.url}" target="_blank" style="color: white; text-decoration: none;">↗ Open</a>
+                            <button class="danger" onclick="app.deleteMedia('${file.url}', this)">🗑 Delete</button>
+                        </div>
+                    `;
+            els.mediaGrid.appendChild(card);
+          });
+        }
+      };
+
+      const app = {
+        async init() {
+          ui.applyTheme();
+          if (!state.settings.token) {
+            ui.toggleSettings(true);
+            return;
+          }
+          await this.refreshFolders();
+          this.setupScrollObserver();
+          this.setupDragAndDrop();
+          this.loadFolder(''); // Load Root initially
+
+          document.getElementById('menuBtn').addEventListener('click', ui.toggleSidebar);
+          window.addEventListener('resize', ui.checkResponsive);
+        },
+
+        saveSettings() {
+          state.settings.token = els.inputToken.value.trim();
+          state.settings.theme = {
+            bg: els.colorBg.value,
+            sidebar: els.colorSidebar.value,
+            text: els.colorText.value,
+            accent: els.colorAccent.value
+          };
+          localStorage.setItem('cdn_settings', JSON.stringify(state.settings));
+          ui.applyTheme();
+          ui.toggleSettings(false);
+          els.mediaGrid.innerHTML = '';
+          this.init();
+        },
+
+        resetTheme() {
+          els.colorBg.value = defaultTheme.bg;
+          els.colorSidebar.value = defaultTheme.sidebar;
+          els.colorText.value = defaultTheme.text;
+          els.colorAccent.value = defaultTheme.accent;
+        },
+
+        async refreshFolders() {
+          const serverFolders = await api.fetchFolders();
+          // Merge server folders with any local virtual folders we've created
+          if (serverFolders) {
+            state.folders = [
+              ...new Set([...state.folders, ...serverFolders])
+            ].sort();
+          }
+          ui.updateSidebar();
+        },
+
+        handleFolderClick(e, path, hasChildren) {
+          // If clicking the little arrow, just toggle expand/collapse
+          if (e.target.classList.contains('collapse-icon')) {
+            e.stopPropagation();
+            const childrenDiv = document.getElementById(`children-${path}`);
+            if (state.expandedFolders.has(path)) {
+              state.expandedFolders.delete(path);
+              e.target.classList.remove('open');
+              childrenDiv.classList.remove('expanded');
+            } else {
+              state.expandedFolders.add(path);
+              e.target.classList.add('open');
+              childrenDiv.classList.add('expanded');
+            }
+            return;
+          }
+          // Otherwise load the folder
+          this.loadFolder(path);
+        },
+
+        async loadFolder(folderName) {
+          state.currentFolder = folderName;
+          state.offset = 0;
+          state.hasMore = true;
+          els.currentFolderText.innerText = folderName || 'Root';
+          els.mediaGrid.innerHTML = '';
+
+          ui.updateSidebar(); // Re-render to highlight active
+          this.loadMore();
+        },
+
+        createNewFolder() {
+          const path = prompt(
+            "Enter new folder path (e.g., 'memes' or '2026/games'):"
+          );
+          if (path && path.trim() !== '') {
+            const cleanPath = path.trim().replace(/^\/+|\/+$/g, ''); // Remove leading/trailing slashes
+            if (!state.folders.includes(cleanPath)) {
+              state.folders.push(cleanPath);
+
+              // Expand parents automatically
+              const parts = cleanPath.split('/');
+              let current = '';
+              parts.forEach((p) => {
+                current += current === '' ? p : `/${p}`;
+                state.expandedFolders.add(current);
+              });
+            }
+            this.loadFolder(cleanPath);
+          }
+        },
+
+        async loadMore() {
+          if (state.isLoading || !state.hasMore) return;
+          state.isLoading = true;
+
+          const data = await api.fetchFiles(state.currentFolder, state.offset);
+          if (data) {
+            ui.appendFiles(data.files);
+            state.offset += state.limit;
+            state.hasMore = data.hasMore;
+          }
+
+          state.isLoading = false;
+        },
+
+        async deleteMedia(url, btnElement) {
+          if (!confirm('Are you sure you want to delete this file?')) return;
+          const success = await api.deleteFile(url);
+          if (success) {
+            btnElement.closest('.media-card').remove();
+          } else {
+            alert('Failed to delete file.');
+          }
+        },
+
+        setupScrollObserver() {
+          const observer = new IntersectionObserver(
+            (entries) => {
+              if (entries[0].isIntersecting) this.loadMore();
+            },
+            { root: document.getElementById('scrollContainer'), threshold: 0.1 }
+          );
+          observer.observe(els.scrollTrigger);
+        },
+
+        setupDragAndDrop() {
+          let dragCounter = 0;
+          els.mainArea.addEventListener('dragenter', (e) => {
+            e.preventDefault();
+            dragCounter++;
+            els.dropOverlay.classList.remove('hidden');
+          });
+          els.mainArea.addEventListener('dragover', (e) => e.preventDefault());
+          els.mainArea.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dragCounter--;
+            if (dragCounter === 0) els.dropOverlay.classList.add('hidden');
+          });
+
+          els.mainArea.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            dragCounter = 0;
+            els.dropOverlay.classList.add('hidden');
+
+            const files = e.dataTransfer.files;
+            if (!files.length) return;
+
+            // Show temporary loading state
+            els.mediaGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;">Uploading ${files.length} file(s)...</div>`;
+
+            let successCount = 0;
+            for (const file of files) {
+              const success = await api.uploadFile(file, state.currentFolder);
+              if (success) successCount++;
+            }
+
+            if (successCount > 0) {
+              await this.refreshFolders(); // Pull updated list from server
+              this.loadFolder(state.currentFolder); // Reload grid to see files
+            } else {
+              alert('Upload failed. Check console or API token.');
+              this.loadFolder(state.currentFolder);
+            }
+          });
+        }
+      };
+
+      // Boot
+      app.init();
+    </script>
+  </body>
+</html>
