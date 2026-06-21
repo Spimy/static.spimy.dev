@@ -623,7 +623,18 @@
           this.setupScrollObserver();
           this.setupDragAndDrop();
           this.setupMobileUpload();
-          this.loadFolder(''); // Load Root initially
+
+          // Read URL Hash on load (remove the '#' and decode)
+          const hashPath = decodeURIComponent(window.location.hash.substring(1));
+          this.loadFolder(hashPath, false); // false prevents duplicate history push
+
+          // Listen for browser Back/Forward navigation
+          window.addEventListener('hashchange', () => {
+            const newPath = decodeURIComponent(window.location.hash.substring(1));
+            if (state.currentFolder !== newPath) {
+              this.loadFolder(newPath, false);
+            }
+          });
 
           document.getElementById('menuBtn').addEventListener('click', ui.toggleSidebar);
           window.addEventListener('resize', ui.checkResponsive);
@@ -713,14 +724,30 @@
           this.loadFolder(path);
         },
 
-        async loadFolder(folderName) {
+        async loadFolder(folderName, updateHash = true) {
           state.currentFolder = folderName;
           state.offset = 0;
           state.hasMore = true;
           els.currentFolderText.innerText = folderName || 'Root';
           els.mediaGrid.innerHTML = '';
 
-          ui.updateSidebar(); // Re-render to highlight active
+          if (updateHash) {
+            const newHash = folderName ? `#${folderName}` : '#';
+            if (window.location.hash !== newHash) {
+              window.history.pushState(null, null, newHash);
+            }
+          }
+
+          if (folderName) {
+            const parts = folderName.split('/');
+            let currentPath = '';
+            parts.forEach((p) => {
+              currentPath += currentPath === '' ? p : `/${p}`;
+              state.expandedFolders.add(currentPath);
+            });
+          }
+
+          ui.updateSidebar();
           this.loadMore();
         },
 
