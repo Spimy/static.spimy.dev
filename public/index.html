@@ -672,7 +672,7 @@
             const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
             const cacheBuster = `?t=${Date.now()}`;
             const mediaTag = isImage
-              ? `<img src="${file.url}${cacheBuster}" loading="lazy">`
+              ? `<img class="media-overlay" src="${file.url}${cacheBuster}" loading="lazy">`
               : `<div style="padding: 20px; text-align: center; word-break: break-all;">📄 ${file.name}</div>`;
 
             const card = document.createElement('div');
