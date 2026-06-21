@@ -31,9 +31,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // If network fails (offline), return the cached API response
-          // ignoreSearch ignores your pagination queries so it still matches
-          return caches.match(request, { ignoreSearch: true });
+          return caches.match(request);
         })
     );
     return;
