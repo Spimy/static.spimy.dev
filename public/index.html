@@ -676,11 +676,16 @@
               : `<div style="padding: 20px; text-align: center; word-break: break-all;">📄 ${file.name}</div>`;
 
             const card = document.createElement('div');
-            card.className = 'media-card media-overlay';
-            card.style.cursor = 'pointer'; // Show it's clickable
-            card.innerHTML = mediaTag;
+            card.className = 'media-card';
+            card.style.cursor = 'pointer';
 
-            // Open the modal on click
+            card.innerHTML = `
+              ${mediaTag}
+              <div class="media-overlay">
+                <button>View</button>
+              </div>
+            `;
+
             card.onclick = () => app.openMediaViewer(file, card);
 
             els.mediaGrid.appendChild(card);
