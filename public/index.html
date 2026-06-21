@@ -475,6 +475,19 @@
     </div>
 
     <script>
+      // Register Service Worker for offline support
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              console.log('Service Worker registered successfully with scope:', registration.scope);
+            })
+            .catch((error) => {
+              console.log('Service Worker registration failed:', error);
+            });
+        });
+      }
+
       const defaultTheme = {
         bg: '#1e1e1e',
         sidebar: '#252526',
@@ -826,19 +839,6 @@
               }
             }
           });
-
-          // Register Service Worker for offline support
-          if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-              navigator.serviceWorker.register('/sw.js')
-                .then((registration) => {
-                  console.log('Service Worker registered successfully with scope:', registration.scope);
-                })
-                .catch((error) => {
-                  console.log('Service Worker registration failed:', error);
-                });
-            });
-          }
         },
 
         async updateStorageUI() {
