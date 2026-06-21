@@ -3,7 +3,7 @@ import fs, { promises as fsPromises } from 'fs';
 import multer from 'multer';
 import path from 'path';
 
-const MAX_UPLOAD_SIZE = 20; // in MiB
+const MAX_UPLOAD_SIZE = 100; // in MiB
 
 // Cache configuration
 interface CacheEntry {
@@ -20,7 +20,7 @@ const fileFilter = (
   callback: Function
 ) => {
   // Allowed ext
-  const filetypes = /jpeg|jpg|png|gif/;
+  const filetypes = /jpeg|jpg|png|gif|mp4/;
   // Check ext
   const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
   // Check mime
@@ -30,7 +30,7 @@ const fileFilter = (
     return callback(null, true);
   }
 
-  return callback(new FileTypeError('Only images are allowed.'));
+  return callback(new FileTypeError('Only images and videos are allowed.'));
 };
 
 const upload = multer({
