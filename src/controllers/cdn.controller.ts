@@ -308,36 +308,25 @@ export const getStorageStats = async (request: Request, response: Response) => {
     if (!fs.existsSync(uploadsDir))
       fs.mkdirSync(uploadsDir, { recursive: true });
 
-    // Recursively calculate used space in the uploads folder
-    const calculateSize = async (dir: string): Promise<number> => {
-      let totalSize = 0;
-      const entries = await fsPromises.readdir(dir, { withFileTypes: true });
-
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          totalSize += await calculateSize(fullPath);
-        } else {
-          const stat = await fsPromises.stat(fullPath);
-          totalSize += stat.size;
-        }
-      }
-      return totalSize;
-    };
-
-    const usedBytes = await calculateSize(uploadsDir);
-
-    // Get total disk space on the drive hosting the uploads folder
     let totalBytes = 0;
+    let usedBytes = 0;
 
     try {
-      // fs.statfs is available in Node >= 19.6.0
+      // statfs gets the filesystem statistics for the drive the folder is on
       const stats = await fsPromises.statfs(uploadsDir);
+
+      // Calculate Total Drive Capacity
       totalBytes = stats.bsize * stats.blocks;
+
+      // Calculate Actual Free Space (bavail = blocks available to non-root users)
+      const freeBytes = stats.bsize * stats.bavail;
+
+      // Calculate True Used Space (OS + Apps + Uploads)
+      usedBytes = totalBytes - freeBytes;
     } catch (e) {
-      // Fallback if statfs fails or Node version is too old.
-      // You can replace this with a hardcoded quota (e.g., 50 * 1024 * 1024 * 1024 for 50GB)
+      // Fallback if statfs fails
       totalBytes = 0;
+      usedBytes = 0;
     }
 
     return response.status(200).json({
