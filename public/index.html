@@ -796,7 +796,6 @@
             return;
           }
           await this.refreshFolders();
-          this.setupScrollObserver();
           this.setupDragAndDrop();
           this.setupMobileUpload();
           await this.updateStorageUI();
@@ -805,7 +804,11 @@
           const hashPath = decodeURIComponent(
             window.location.hash.substring(1)
           );
+          
           this.loadFolder(hashPath, false); // false prevents duplicate history push
+
+          this.setupScrollObserver();
+
 
           // Listen for browser Back/Forward navigation
           window.addEventListener('hashchange', () => {
@@ -1117,6 +1120,7 @@
           state.currentFolder = folderName;
           state.offset = 0;
           state.hasMore = true;
+          state.isLoading = false;
           els.currentFolderText.innerText = folderName || 'Root';
           els.mediaGrid.innerHTML = '';
           state.loadedFiles = [];
