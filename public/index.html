@@ -272,6 +272,8 @@
       <div class="sidebar-header">
         <strong>📂 Explorer</strong>
         <div style="display: flex; gap: 5px">
+          <button onclick="app.expandAll()" title="Expand All">🔽</button>
+          <button onclick="app.collapseAll()" title="Collapse All">▶️</button>
           <button onclick="app.createNewFolder()" title="New Folder">➕</button>
           <button onclick="ui.toggleSettings()" title="Settings">⚙️</button>
         </div>
@@ -519,8 +521,7 @@
           for (const [name, data] of Object.entries(node)) {
             const hasChildren = Object.keys(data._children).length > 0;
             const path = data._path;
-            const isExpanded = state.expandedFolders.has(path) || depth === 0; // Root levels open by default
-            if (isExpanded) state.expandedFolders.add(path); // ensure state tracks defaults
+            const isExpanded = state.expandedFolders.has(path);
 
             const isActive = state.currentFolder === path ? 'active' : '';
             const indent = depth * 15 + 15;
@@ -638,6 +639,37 @@
 
           document.getElementById('menuBtn').addEventListener('click', ui.toggleSidebar);
           window.addEventListener('resize', ui.checkResponsive);
+        },
+
+        collapseAll() {
+          state.expandedFolders.clear();
+          
+          // Re-expand just the currently active folder so the user 
+          // doesn't lose their place after collapsing everything else.
+          if (state.currentFolder) {
+            const parts = state.currentFolder.split('/');
+            let currentPath = '';
+            parts.forEach((p) => {
+              currentPath += currentPath === '' ? p : `/${p}`;
+              state.expandedFolders.add(currentPath);
+            });
+          }
+          
+          ui.updateSidebar();
+        },
+
+        expandAll() {
+          // Iterate through all known folders and add every segment to the expanded set
+          state.folders.forEach(path => {
+            const parts = path.split('/');
+            let current = '';
+            parts.forEach(part => {
+              current += current === '' ? part : `/${part}`;
+              state.expandedFolders.add(current);
+            });
+          });
+          
+          ui.updateSidebar();
         },
 
         async processUploads(files) {
