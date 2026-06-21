@@ -576,7 +576,9 @@
 
         async getStorage() {
           try {
-            const res = await fetch('/api/storage', { headers: this.headers() });
+            const res = await fetch('/api/storage', {
+              headers: this.headers()
+            });
             if (!res.ok) return null;
             return await res.json();
           } catch (e) {
@@ -720,10 +722,13 @@
           // Render the actual files below the folders
           files.forEach((file) => {
             const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
+            const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(file.name);
             const cacheBuster = `?t=${Date.now()}`;
             const mediaTag = isImage
               ? `<img src="${file.url}${cacheBuster}" loading="lazy">`
-              : `<div style="padding: 20px; text-align: center; word-break: break-all;">📄 ${file.name}</div>`;
+              : isVideo
+                ? `<video src="${file.url}${cacheBuster}" controls style="max-width: 100%; max-height: 100%; outline: none;"></video>`
+                : `<div style="padding: 20px; text-align: center; word-break: break-all;">📄 ${file.name}</div>`;
 
             const card = document.createElement('div');
             card.className = 'media-card';
@@ -791,14 +796,17 @@
             const k = 1024;
             const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+            return (
+              parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+            );
           };
 
           const usedStr = formatBytes(data.usedBytes);
-          
+
           // If totalBytes is 0 (fallback), just show used space
           if (data.totalBytes <= 0) {
-            document.getElementById('storageText').innerText = `${usedStr} Used`;
+            document.getElementById('storageText').innerText =
+              `${usedStr} Used`;
             document.getElementById('storageBar').style.width = '100%';
             document.getElementById('storageBar').style.background = '#007bff'; // Blue for undetermined total
             return;
@@ -807,8 +815,9 @@
           const totalStr = formatBytes(data.totalBytes);
           const percentage = (data.usedBytes / data.totalBytes) * 100;
 
-          document.getElementById('storageText').innerText = `${usedStr} / ${totalStr}`;
-          
+          document.getElementById('storageText').innerText =
+            `${usedStr} / ${totalStr}`;
+
           const bar = document.getElementById('storageBar');
           bar.style.width = `${Math.min(percentage, 100)}%`;
 
@@ -819,15 +828,18 @@
             bar.classList.remove('warning');
           }
         },
-        
+
         openMediaViewer(file, cardElement) {
           const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
+          const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(file.name);
           const viewerContent = document.getElementById('mediaViewerContent');
           const cacheBuster = `?t=${Date.now()}`;
 
-          // 1. Inject Media
+          // Inject Media
           if (isImage) {
             viewerContent.innerHTML = `<img src="${file.url}${cacheBuster}" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
+          } else if (isVideo) {
+            viewerContent.innerHTML = `<video src="${file.url}${cacheBuster}" controls autoplay style="max-width: 100%; max-height: 100%; outline: none;"></video>`;
           } else {
             viewerContent.innerHTML = `<div style="padding: 40px; font-size: 60px;">📄</div>`;
           }
