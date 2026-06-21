@@ -438,9 +438,14 @@
               headers: this.headers(),
               body: formData
             });
-            return res.ok;
+            
+            if (res.ok) return { success: true };
+            
+            // If not ok, try to parse the backend error message
+            const data = await res.json().catch(() => ({})); 
+            return { success: false, error: data.message || `HTTP Error ${res.status}` };
           } catch (e) {
-            return false;
+            return { success: false, error: e.message };
           }
         },
 
@@ -454,9 +459,14 @@
               },
               body: JSON.stringify({ url })
             });
-            return res.ok;
+            
+            if (res.ok) return { success: true };
+            
+            // Catch backend error on delete
+            const data = await res.json().catch(() => ({}));
+            return { success: false, error: data.message || `HTTP Error ${res.status}` };
           } catch (e) {
-            return false;
+            return { success: false, error: e.message };
           }
         }
       };
@@ -679,16 +689,29 @@
           els.mediaGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 20px;">Uploading ${files.length} file(s)...</div>`;
 
           let successCount = 0;
+          let lastError = ''; // Keep track of the error message
+
           for (const file of files) {
-            const success = await api.uploadFile(file, state.currentFolder);
-            if (success) successCount++;
+            const result = await api.uploadFile(file, state.currentFolder);
+            if (result.success) {
+              successCount++;
+            } else {
+              lastError = result.error;
+            }
           }
 
-          if (successCount > 0) {
-            await this.refreshFolders(); // Pull updated list from server
-            this.loadFolder(state.currentFolder); // Reload grid to see files
+          if (successCount === files.length) {
+            // All files uploaded perfectly
+            await this.refreshFolders(); 
+            this.loadFolder(state.currentFolder); 
+          } else if (successCount > 0) {
+            // Some succeeded, some failed
+            alert(`Partially finished: Uploaded ${successCount}/${files.length} files.\n\nLast error: ${lastError}`);
+            await this.refreshFolders();
+            this.loadFolder(state.currentFolder);
           } else {
-            alert('Upload failed. Check console or API token.');
+            // All failed
+            alert(`Upload failed!\n\nError: ${lastError}`);
             this.loadFolder(state.currentFolder);
           }
         },
@@ -835,11 +858,14 @@
 
         async deleteMedia(url, btnElement) {
           if (!confirm('Are you sure you want to delete this file?')) return;
-          const success = await api.deleteFile(url);
-          if (success) {
+          
+          const result = await api.deleteFile(url);
+          
+          if (result.success) {
             btnElement.closest('.media-card').remove();
           } else {
-            alert('Failed to delete file.');
+            // Show the specific error from the backend instead of a generic message
+            alert(`Failed to delete file.\n\nError: ${result.error}`);
           }
         },
 
