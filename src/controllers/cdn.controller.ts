@@ -301,3 +301,52 @@ export const getFiles = async (request: Request, response: Response) => {
     hasMore
   });
 };
+
+export const getStorageStats = async (request: Request, response: Response) => {
+  try {
+    const uploadsDir = getUploadsDir();
+    if (!fs.existsSync(uploadsDir))
+      fs.mkdirSync(uploadsDir, { recursive: true });
+
+    // Recursively calculate used space in the uploads folder
+    const calculateSize = async (dir: string): Promise<number> => {
+      let totalSize = 0;
+      const entries = await fsPromises.readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          totalSize += await calculateSize(fullPath);
+        } else {
+          const stat = await fsPromises.stat(fullPath);
+          totalSize += stat.size;
+        }
+      }
+      return totalSize;
+    };
+
+    const usedBytes = await calculateSize(uploadsDir);
+
+    // Get total disk space on the drive hosting the uploads folder
+    let totalBytes = 0;
+
+    try {
+      // fs.statfs is available in Node >= 19.6.0
+      const stats = await fsPromises.statfs(uploadsDir);
+      totalBytes = stats.bsize * stats.blocks;
+    } catch (e) {
+      // Fallback if statfs fails or Node version is too old.
+      // You can replace this with a hardcoded quota (e.g., 50 * 1024 * 1024 * 1024 for 50GB)
+      totalBytes = 0;
+    }
+
+    return response.status(200).json({
+      usedBytes,
+      totalBytes
+    });
+  } catch (error: any) {
+    return response
+      .status(500)
+      .json({ message: `Storage stats error: ${error.message}` });
+  }
+};

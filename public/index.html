@@ -313,6 +313,37 @@
         height: 20px;
         margin-top: 20px;
       }
+
+      .storage-widget {
+        margin-top: auto; /* Pushes it to the bottom of the sidebar */
+        padding-top: 15px;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        font-size: 0.85em;
+        color: #aaa;
+      }
+
+      .storage-bar-bg {
+        width: 100%;
+        height: 8px;
+        background: rgba(0, 0, 0, 0.5);
+        border-radius: 4px;
+        margin-top: 8px;
+        overflow: hidden;
+      }
+
+      .storage-bar-fill {
+        height: 100%;
+        background: #4caf50; /* Green bar */
+        width: 0%; /* Will be set by JS */
+        transition:
+          width 0.3s ease,
+          background-color 0.3s ease;
+      }
+
+      /* Change color to red if nearing capacity */
+      .storage-bar-fill.warning {
+        background: #f44336;
+      }
     </style>
   </head>
   <body>
@@ -327,6 +358,15 @@
         </div>
       </div>
       <div class="folder-list" id="folderList"></div>
+      <div class="storage-widget">
+        <div style="display: flex; justify-content: space-between">
+          <span>Storage</span>
+          <strong id="storageText">Loading...</strong>
+        </div>
+        <div class="storage-bar-bg">
+          <div id="storageBar" class="storage-bar-fill"></div>
+        </div>
+      </div>
     </div>
 
     <div class="main-area" id="mainArea">
@@ -532,6 +572,16 @@
           } catch (e) {
             return { success: false, error: e.message };
           }
+        },
+
+        async getStorage() {
+          try {
+            const res = await fetch('/api/storage', { headers: this.headers() });
+            if (!res.ok) return null;
+            return await res.json();
+          } catch (e) {
+            return null;
+          }
         }
       };
 
@@ -704,6 +754,7 @@
           this.setupScrollObserver();
           this.setupDragAndDrop();
           this.setupMobileUpload();
+          await this.updateStorageUI();
 
           // Read URL Hash on load (remove the '#' and decode)
           const hashPath = decodeURIComponent(
@@ -727,6 +778,48 @@
           window.addEventListener('resize', ui.checkResponsive);
         },
 
+        async updateStorageUI() {
+          const data = await api.getStorage();
+          if (!data) {
+            document.getElementById('storageText').innerText = 'Unavailable';
+            return;
+          }
+
+          // Helper to format bytes to MB/GB
+          const formatBytes = (bytes) => {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+          };
+
+          const usedStr = formatBytes(data.usedBytes);
+          
+          // If totalBytes is 0 (fallback), just show used space
+          if (data.totalBytes <= 0) {
+            document.getElementById('storageText').innerText = `${usedStr} Used`;
+            document.getElementById('storageBar').style.width = '100%';
+            document.getElementById('storageBar').style.background = '#007bff'; // Blue for undetermined total
+            return;
+          }
+
+          const totalStr = formatBytes(data.totalBytes);
+          const percentage = (data.usedBytes / data.totalBytes) * 100;
+
+          document.getElementById('storageText').innerText = `${usedStr} / ${totalStr}`;
+          
+          const bar = document.getElementById('storageBar');
+          bar.style.width = `${Math.min(percentage, 100)}%`;
+
+          // Turn red if over 90% full
+          if (percentage > 90) {
+            bar.classList.add('warning');
+          } else {
+            bar.classList.remove('warning');
+          }
+        },
+        
         openMediaViewer(file, cardElement) {
           const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
           const viewerContent = document.getElementById('mediaViewerContent');
@@ -831,6 +924,7 @@
             // All files uploaded perfectly
             await this.refreshFolders();
             this.loadFolder(state.currentFolder);
+            this.updateStorageUI();
           } else if (successCount > 0) {
             // Some succeeded, some failed
             alert(
@@ -838,6 +932,7 @@
             );
             await this.refreshFolders();
             this.loadFolder(state.currentFolder);
+            this.updateStorageUI();
           } else {
             // All failed
             alert(`Upload failed!\n\nError: ${lastError}`);
@@ -994,6 +1089,7 @@
 
           if (result.success) {
             btnElement.closest('.media-card').remove();
+            this.updateStorageUI();
           } else {
             // Show the specific error from the backend instead of a generic message
             alert(`Failed to delete file.\n\nError: ${result.error}`);
