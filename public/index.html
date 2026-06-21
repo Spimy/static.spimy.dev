@@ -344,6 +344,24 @@
       .storage-bar-fill.warning {
         background: #f44336;
       }
+
+      .nav-arrow {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(0, 0, 0, 0.5) !important;
+        color: white;
+        border: none;
+        padding: 15px 10px;
+        cursor: pointer;
+        z-index: 10;
+        font-size: 1.5em;
+        border-radius: 4px;
+        transition: background 0.2s;
+      }
+      .nav-arrow:hover {
+        background: rgba(0, 0, 0, 0.8) !important;
+      }
     </style>
   </head>
   <body>
@@ -477,7 +495,9 @@
         offset: 0,
         limit: 20,
         hasMore: true,
-        isLoading: false
+        isLoading: false,
+        loadedFiles: [],
+        currentFileIndex: -1
       };
 
       const els = {
@@ -719,6 +739,8 @@
             });
           }
 
+          state.loadedFiles = [...state.loadedFiles, ...files];
+
           // Render the actual files below the folders
           files.forEach((file) => {
             const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
@@ -741,7 +763,12 @@
               </div>
             `;
 
-            card.onclick = () => app.openMediaViewer(file, card);
+            card.onclick = () => {
+              const globalIndex = state.loadedFiles.findIndex(
+                (f) => f.url === file.url
+              );
+              app.openMediaViewer(globalIndex);
+            };
 
             els.mediaGrid.appendChild(card);
           });
@@ -781,6 +808,24 @@
             .getElementById('menuBtn')
             .addEventListener('click', ui.toggleSidebar);
           window.addEventListener('resize', ui.checkResponsive);
+
+          window.addEventListener('keydown', (e) => {
+            const modal = document.getElementById('mediaViewerModal');
+            // Only intercept keys if the media viewer is actually open
+            if (modal && !modal.classList.contains('hidden')) {
+              if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                this.nextMedia();
+              } else if (
+                e.key === 'ArrowLeft' ||
+                e.key === 'a' ||
+                e.key === 'A'
+              ) {
+                this.prevMedia();
+              } else if (e.key === 'Escape') {
+                this.closeMediaViewer();
+              }
+            }
+          });
         },
 
         async updateStorageUI() {
@@ -829,13 +874,18 @@
           }
         },
 
-        openMediaViewer(file, cardElement) {
+        openMediaViewer(index) {
+          if (index < 0 || index >= state.loadedFiles.length) return;
+
+          state.currentFileIndex = index;
+          const file = state.loadedFiles[index];
+
           const isImage = /\.(jpeg|jpg|png|gif|webp)$/i.test(file.name);
           const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(file.name);
           const viewerContent = document.getElementById('mediaViewerContent');
           const cacheBuster = `?t=${Date.now()}`;
 
-          // Inject Media
+          // 1. Inject Media
           if (isImage) {
             viewerContent.innerHTML = `<img src="${file.url}${cacheBuster}" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
           } else if (isVideo) {
@@ -851,6 +901,11 @@
           document.getElementById('mediaViewerDetails').innerText =
             `Path: ${state.currentFolder || 'Root'}`;
 
+          document.getElementById('navLeftBtn').style.display =
+            index === 0 ? 'none' : 'block';
+          document.getElementById('navRightBtn').style.display =
+            index === state.loadedFiles.length - 1 ? 'none' : 'block';
+
           document.getElementById('btnViewerCopy').onclick = () => {
             navigator.clipboard.writeText(file.url);
             alert('URL copied to clipboard!');
@@ -865,8 +920,24 @@
 
             const result = await api.deleteFile(file.url);
             if (result.success) {
-              cardElement.remove(); // Remove from grid behind the modal
-              this.closeMediaViewer();
+              // Remove from the grid UI
+              const cards = els.mediaGrid.querySelectorAll('.media-card');
+              if (cards[index]) cards[index].remove();
+
+              // Remove from our memory state array
+              state.loadedFiles.splice(index, 1);
+
+              // If there are files left, show the next one, otherwise close
+              if (state.loadedFiles.length > 0) {
+                // Adjust index if we deleted the last item
+                const nextIndex =
+                  index >= state.loadedFiles.length
+                    ? state.loadedFiles.length - 1
+                    : index;
+                this.openMediaViewer(nextIndex);
+              } else {
+                this.closeMediaViewer();
+              }
             } else {
               alert(`Failed to delete file.\n\nError: ${result.error}`);
             }
@@ -881,6 +952,19 @@
           document.getElementById('mediaViewerModal').classList.add('hidden');
           // Clear the content so audio/video stops playing and memory is freed
           document.getElementById('mediaViewerContent').innerHTML = '';
+          state.currentFileIndex = -1;
+        },
+
+        nextMedia() {
+          if (state.currentFileIndex < state.loadedFiles.length - 1) {
+            this.openMediaViewer(state.currentFileIndex + 1);
+          }
+        },
+
+        prevMedia() {
+          if (state.currentFileIndex > 0) {
+            this.openMediaViewer(state.currentFileIndex - 1);
+          }
         },
 
         collapseAll() {
@@ -974,6 +1058,7 @@
           ui.applyTheme();
           ui.toggleSettings(false);
           els.mediaGrid.innerHTML = '';
+          state.loadedFiles = [];
           this.init();
         },
 
@@ -1021,6 +1106,7 @@
           state.hasMore = true;
           els.currentFolderText.innerText = folderName || 'Root';
           els.mediaGrid.innerHTML = '';
+          state.loadedFiles = [];
 
           if (updateHash) {
             const newHash = folderName ? `#${folderName}` : '#';
@@ -1150,7 +1236,35 @@
 
     <div class="modal hidden" id="mediaViewerModal">
       <div class="viewer-layout">
-        <div class="viewer-media" id="mediaViewerContent"></div>
+        <div class="viewer-media" style="position: relative">
+          <button
+            onclick="app.prevMedia()"
+            id="navLeftBtn"
+            class="nav-arrow"
+            style="left: 10px"
+          >
+            ◀
+          </button>
+          <button
+            onclick="app.nextMedia()"
+            id="navRightBtn"
+            class="nav-arrow"
+            style="right: 10px"
+          >
+            ▶
+          </button>
+
+          <div
+            id="mediaViewerContent"
+            style="
+              width: 100%;
+              height: 100%;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+            "
+          ></div>
+        </div>
 
         <div class="viewer-sidebar">
           <h3
