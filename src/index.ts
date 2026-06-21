@@ -19,6 +19,10 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
 });
 
+app.get('/sw.js', (_req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'sw.js'));
+});
+
 // Serve static files
 app.use(express.static(path.join(__dirname, '..', 'uploads')));
 app.use('/assets', express.static(path.join(__dirname, '..', 'public')));
